@@ -32,6 +32,8 @@ export default function Index() {
     loading: number;
     unloading: number;
     storage: number;
+    subtotal: number;
+    markup: number;
     total: number;
   } | null>(null);
 
@@ -45,13 +47,17 @@ export default function Index() {
     const loadingCost = noWarehouse ? 0 : Math.round(w * t.loading);
     const unloadingCost = noWarehouse ? 0 : Math.round(w * t.unloading);
     const storageCost = noWarehouse ? 0 : Math.round(v * t.storage);
-    const total = deliveryCost + loadingCost + unloadingCost + storageCost;
+    const subtotal = deliveryCost + loadingCost + unloadingCost + storageCost;
+    const markup = Math.round(subtotal * 0.25);
+    const total = subtotal + markup;
 
     setResult({
       delivery: deliveryCost,
       loading: loadingCost,
       unloading: unloadingCost,
       storage: storageCost,
+      subtotal,
+      markup,
       total,
     });
   };
@@ -208,6 +214,14 @@ export default function Index() {
                             <span className="font-medium text-slate-12">Без склада</span>
                           </div>
                         )}
+                        <div className="flex justify-between py-2.5 border-b border-gray-11/10">
+                          <span className="text-slate-10">Предв. стоимость</span>
+                          <span className="font-medium">{result.subtotal.toLocaleString("ru-RU")} ₽</span>
+                        </div>
+                        <div className="flex justify-between py-2.5 border-b border-gray-11/10">
+                          <span className="text-slate-10">Услуги (+25%)</span>
+                          <span className="font-medium">{result.markup.toLocaleString("ru-RU")} ₽</span>
+                        </div>
                       </div>
 
                       <p className="text-xs text-slate-10 text-center">
