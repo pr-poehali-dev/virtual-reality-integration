@@ -1,186 +1,166 @@
 import { ThemeProvider } from "next-themes";
 import { useState } from "react";
-import {
-  WaitlistWrapper,
-  MeshGradient,
-} from "@/components/waitlist";
+import { useNavigate } from "react-router-dom";
+import { WaitlistWrapper, MeshGradient } from "@/components/waitlist";
 import Icon from "@/components/ui/icon";
 
-type RouteType = "city" | "region" | "inter";
-type WeightType = "light" | "medium" | "heavy" | "extra";
-
-const ROUTE_LABELS: Record<RouteType, string> = {
-  city: "По городу",
-  region: "По региону",
-  inter: "Межрегиональная",
+const DEFAULT_TARIFFS = {
+  loading: 350,
+  unloading: 350,
+  storage: 120,
+  delivery: 45,
 };
 
-const WEIGHT_LABELS: Record<WeightType, string> = {
-  light: "до 100 кг",
-  medium: "100–500 кг",
-  heavy: "500–2000 кг",
-  extra: "свыше 2000 кг",
-};
-
-const BASE_PRICE: Record<RouteType, number> = {
-  city: 2500,
-  region: 7000,
-  inter: 15000,
-};
-
-const WEIGHT_MULT: Record<WeightType, number> = {
-  light: 1,
-  medium: 1.8,
-  heavy: 3.2,
-  extra: 5.5,
-};
+function getStoredTariffs() {
+  try {
+    const raw = localStorage.getItem("cargo_tariffs");
+    if (raw) return { ...DEFAULT_TARIFFS, ...JSON.parse(raw) };
+  } catch (_e) {
+    return DEFAULT_TARIFFS;
+  }
+  return DEFAULT_TARIFFS;
+}
 
 export default function Index() {
-  const [route, setRoute] = useState<RouteType>("city");
-  const [weight, setWeight] = useState<WeightType>("light");
-  const [fragile, setFragile] = useState(false);
-  const [urgent, setUrgent] = useState(false);
-  const [calculated, setCalculated] = useState(false);
-  const [result, setResult] = useState<number | null>(null);
+  const navigate = useNavigate();
+  const [weight, setWeight] = useState("");
+  const [volume, setVolume] = useState("");
+  const [distance, setDistance] = useState("");
+  const [noWarehouse, setNoWarehouse] = useState(false);
+  const [result, setResult] = useState<{
+    delivery: number;
+    loading: number;
+    unloading: number;
+    storage: number;
+    total: number;
+  } | null>(null);
 
   const handleCalculate = () => {
-    let price = BASE_PRICE[route] * WEIGHT_MULT[weight];
-    if (fragile) price *= 1.15;
-    if (urgent) price *= 1.3;
-    setResult(Math.round(price / 100) * 100);
-    setCalculated(true);
+    const w = parseFloat(weight) || 0;
+    const v = parseFloat(volume) || 0;
+    const km = parseFloat(distance) || 0;
+    const t = getStoredTariffs();
+
+    const deliveryCost = Math.round(km * t.delivery);
+    const loadingCost = noWarehouse ? 0 : Math.round(w * t.loading);
+    const unloadingCost = noWarehouse ? 0 : Math.round(w * t.unloading);
+    const storageCost = noWarehouse ? 0 : Math.round(v * t.storage);
+    const total = deliveryCost + loadingCost + unloadingCost + storageCost;
+
+    setResult({
+      delivery: deliveryCost,
+      loading: loadingCost,
+      unloading: unloadingCost,
+      storage: storageCost,
+      total,
+    });
   };
 
-  const handleReset = () => {
-    setCalculated(false);
-    setResult(null);
-  };
+  const handleReset = () => setResult(null);
+
+  const inputClass =
+    "w-full h-11 px-4 text-sm bg-gray-11/5 border border-gray-11/10 rounded-xl text-slate-12 placeholder:text-slate-9 focus:outline-none focus:ring-2 focus:ring-gray-12/20";
 
   return (
-    <ThemeProvider
-      attribute="class"
-      defaultTheme="system"
-      enableSystem
-      disableTransitionOnChange
-    >
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
       <div className="antialiased max-w-screen min-h-svh bg-slate-1 text-slate-12">
         <MeshGradient
           colors={["#0a2463", "#1e6b8c", "#0d6e5c", "#1a4a8a"]}
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            zIndex: 0,
-            width: "100%",
-            height: "100%",
-          }}
+          style={{ position: "fixed", top: 0, left: 0, zIndex: 0, width: "100%", height: "100%" }}
         />
-        <div className="max-w-screen-sm mx-auto w-full relative z-[1] flex flex-col min-h-screen items-center justify-center">
-          <div className="px-5 gap-8 flex flex-col w-full">
+        <div className="max-w-screen-sm mx-auto w-full relative z-[1] flex flex-col min-h-screen items-center justify-center py-10">
+          <div className="px-5 w-full">
             <main className="flex justify-center">
               <WaitlistWrapper
-                logo={{
-                  src: "/logo.svg",
-                  alt: "Cargo",
-                }}
+                logo={{ src: "/logo.svg", alt: "Cargo" }}
                 copyright="Сервис доставки"
                 copyrightLink={{ text: "коммерческих грузов", href: "#" }}
                 showThemeSwitcher={true}
               >
-                {!calculated ? (
+                {!result ? (
                   <>
                     <div className="space-y-1">
-                      <h1 className="text-2xl sm:text-3xl font-medium text-slate-12 whitespace-pre-wrap text-pretty">
+                      <h1 className="text-2xl sm:text-3xl font-medium text-slate-12 text-pretty">
                         Расчёт стоимости доставки
                       </h1>
                       <p className="text-slate-10 tracking-tight text-pretty">
-                        Быстро узнайте примерную стоимость доставки вашего груза
+                        Введите параметры груза для расчёта
                       </p>
                     </div>
 
-                    <div className="flex flex-col gap-5 w-full text-left">
-                      {/* Маршрут */}
-                      <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-4 w-full text-left">
+                      <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-medium text-slate-10 uppercase tracking-wider px-1">
-                          Маршрут
+                          Вес, тонн
                         </label>
-                        <div className="grid grid-cols-3 gap-2">
-                          {(Object.keys(ROUTE_LABELS) as RouteType[]).map((r) => (
-                            <button
-                              key={r}
-                              onClick={() => setRoute(r)}
-                              className={`py-2 px-2 rounded-xl text-sm font-medium transition-all border ${
-                                route === r
-                                  ? "bg-gray-12 text-gray-1 border-gray-12"
-                                  : "bg-gray-11/5 text-slate-11 border-gray-11/10 hover:border-gray-11/30"
-                              }`}
-                            >
-                              {ROUTE_LABELS[r]}
-                            </button>
-                          ))}
-                        </div>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.1"
+                          placeholder="например, 2.5"
+                          value={weight}
+                          onChange={(e) => setWeight(e.target.value)}
+                          className={inputClass}
+                        />
                       </div>
 
-                      {/* Вес */}
-                      <div className="flex flex-col gap-2">
+                      <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-medium text-slate-10 uppercase tracking-wider px-1">
-                          Вес груза
+                          Объём, м²
                         </label>
-                        <div className="grid grid-cols-2 gap-2">
-                          {(Object.keys(WEIGHT_LABELS) as WeightType[]).map((w) => (
-                            <button
-                              key={w}
-                              onClick={() => setWeight(w)}
-                              className={`py-2 px-3 rounded-xl text-sm font-medium transition-all border ${
-                                weight === w
-                                  ? "bg-gray-12 text-gray-1 border-gray-12"
-                                  : "bg-gray-11/5 text-slate-11 border-gray-11/10 hover:border-gray-11/30"
-                              }`}
-                            >
-                              {WEIGHT_LABELS[w]}
-                            </button>
-                          ))}
-                        </div>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.1"
+                          placeholder="например, 10"
+                          value={volume}
+                          onChange={(e) => setVolume(e.target.value)}
+                          className={inputClass}
+                        />
                       </div>
 
-                      {/* Доп. опции */}
-                      <div className="flex flex-col gap-2">
+                      <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-medium text-slate-10 uppercase tracking-wider px-1">
-                          Дополнительно
+                          Расстояние, км
                         </label>
-                        <div className="flex flex-col gap-2">
-                          <button
-                            onClick={() => setFragile(!fragile)}
-                            className={`flex items-center gap-3 py-2.5 px-3 rounded-xl text-sm font-medium transition-all border ${
-                              fragile
-                                ? "bg-gray-12 text-gray-1 border-gray-12"
-                                : "bg-gray-11/5 text-slate-11 border-gray-11/10 hover:border-gray-11/30"
-                            }`}
-                          >
-                            <Icon name={fragile ? "CheckSquare" : "Square"} size={16} />
-                            Хрупкий груз (+15%)
-                          </button>
-                          <button
-                            onClick={() => setUrgent(!urgent)}
-                            className={`flex items-center gap-3 py-2.5 px-3 rounded-xl text-sm font-medium transition-all border ${
-                              urgent
-                                ? "bg-gray-12 text-gray-1 border-gray-12"
-                                : "bg-gray-11/5 text-slate-11 border-gray-11/10 hover:border-gray-11/30"
-                            }`}
-                          >
-                            <Icon name={urgent ? "CheckSquare" : "Square"} size={16} />
-                            Срочная доставка (+30%)
-                          </button>
-                        </div>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          placeholder="например, 150"
+                          value={distance}
+                          onChange={(e) => setDistance(e.target.value)}
+                          className={inputClass}
+                        />
                       </div>
 
-                      {/* Кнопка расчёта */}
+                      <button
+                        onClick={() => setNoWarehouse(!noWarehouse)}
+                        className={`flex items-center gap-3 py-2.5 px-3 rounded-xl text-sm font-medium transition-all border ${
+                          noWarehouse
+                            ? "bg-gray-12 text-gray-1 border-gray-12"
+                            : "bg-gray-11/5 text-slate-11 border-gray-11/10 hover:border-gray-11/30"
+                        }`}
+                      >
+                        <Icon name={noWarehouse ? "CheckSquare" : "Square"} size={16} />
+                        Без склада — от поставщика к клиенту
+                      </button>
+
                       <button
                         onClick={handleCalculate}
-                        className="w-full py-3 bg-gray-12 text-gray-1 rounded-full font-medium text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
+                        disabled={!weight && !volume && !distance}
+                        className="w-full py-3 bg-gray-12 text-gray-1 rounded-full font-medium text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <Icon name="Calculator" size={16} />
                         Рассчитать стоимость
+                      </button>
+
+                      <button
+                        onClick={() => navigate("/tariffs")}
+                        className="w-full py-2 text-slate-10 text-xs hover:text-slate-12 transition-colors flex items-center justify-center gap-1.5"
+                      >
+                        <Icon name="Settings" size={13} />
+                        Настроить тарифы
                       </button>
                     </div>
                   </>
@@ -188,42 +168,44 @@ export default function Index() {
                   <>
                     <div className="space-y-1">
                       <h1 className="text-2xl sm:text-3xl font-medium text-slate-12">
-                        Ваш расчёт готов
+                        Расчёт готов
                       </h1>
-                      <p className="text-slate-10 tracking-tight">
-                        Примерная стоимость доставки
-                      </p>
+                      <p className="text-slate-10 tracking-tight">Предварительная стоимость</p>
                     </div>
 
-                    <div className="flex flex-col gap-5 w-full">
-                      {/* Итог */}
+                    <div className="flex flex-col gap-4 w-full">
                       <div className="bg-gray-11/5 border border-gray-11/10 rounded-2xl p-6 text-center">
-                        <p className="text-slate-10 text-sm mb-1">Стоимость от</p>
+                        <p className="text-slate-10 text-sm mb-1">Итого</p>
                         <p className="text-4xl font-bold text-slate-12">
-                          {result?.toLocaleString("ru-RU")} ₽
+                          {result.total.toLocaleString("ru-RU")} ₽
                         </p>
                       </div>
 
-                      {/* Параметры */}
-                      <div className="flex flex-col gap-2 text-sm">
-                        <div className="flex justify-between py-2 border-b border-gray-11/10">
-                          <span className="text-slate-10">Маршрут</span>
-                          <span className="text-slate-12 font-medium">{ROUTE_LABELS[route]}</span>
+                      <div className="flex flex-col text-sm">
+                        <div className="flex justify-between py-2.5 border-b border-gray-11/10">
+                          <span className="text-slate-10">Доставка</span>
+                          <span className="font-medium">{result.delivery.toLocaleString("ru-RU")} ₽</span>
                         </div>
-                        <div className="flex justify-between py-2 border-b border-gray-11/10">
-                          <span className="text-slate-10">Вес груза</span>
-                          <span className="text-slate-12 font-medium">{WEIGHT_LABELS[weight]}</span>
-                        </div>
-                        {fragile && (
-                          <div className="flex justify-between py-2 border-b border-gray-11/10">
-                            <span className="text-slate-10">Хрупкий груз</span>
-                            <span className="text-slate-12 font-medium">+15%</span>
-                          </div>
+                        {!noWarehouse && (
+                          <>
+                            <div className="flex justify-between py-2.5 border-b border-gray-11/10">
+                              <span className="text-slate-10">Погрузка</span>
+                              <span className="font-medium">{result.loading.toLocaleString("ru-RU")} ₽</span>
+                            </div>
+                            <div className="flex justify-between py-2.5 border-b border-gray-11/10">
+                              <span className="text-slate-10">Выгрузка</span>
+                              <span className="font-medium">{result.unloading.toLocaleString("ru-RU")} ₽</span>
+                            </div>
+                            <div className="flex justify-between py-2.5 border-b border-gray-11/10">
+                              <span className="text-slate-10">Размещение на складе</span>
+                              <span className="font-medium">{result.storage.toLocaleString("ru-RU")} ₽</span>
+                            </div>
+                          </>
                         )}
-                        {urgent && (
-                          <div className="flex justify-between py-2 border-b border-gray-11/10">
-                            <span className="text-slate-10">Срочная доставка</span>
-                            <span className="text-slate-12 font-medium">+30%</span>
+                        {noWarehouse && (
+                          <div className="flex justify-between py-2.5 border-b border-gray-11/10">
+                            <span className="text-slate-10">Режим</span>
+                            <span className="font-medium text-slate-12">Без склада</span>
                           </div>
                         )}
                       </div>
@@ -232,18 +214,13 @@ export default function Index() {
                         Точная стоимость уточняется у менеджера
                       </p>
 
-                      <div className="flex flex-col gap-2">
-                        <button className="w-full py-3 bg-gray-12 text-gray-1 rounded-full font-medium text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
-                          <Icon name="Phone" size={16} />
-                          Оформить заявку
-                        </button>
-                        <button
-                          onClick={handleReset}
-                          className="w-full py-2.5 text-slate-10 text-sm hover:text-slate-12 transition-colors"
-                        >
-                          Рассчитать заново
-                        </button>
-                      </div>
+                      <button
+                        onClick={handleReset}
+                        className="w-full py-3 bg-gray-12 text-gray-1 rounded-full font-medium text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
+                      >
+                        <Icon name="RefreshCw" size={16} />
+                        Рассчитать заново
+                      </button>
                     </div>
                   </>
                 )}
